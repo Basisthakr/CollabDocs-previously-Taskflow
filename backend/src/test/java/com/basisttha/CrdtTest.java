@@ -109,18 +109,6 @@ class CrdtTest {
             assertThat(found.getContent()).isEqualTo("x");
         }
 
-        @Test
-        @DisplayName("getItems returns all items in order including tombstones")
-        void getItemsIncludesTombstones() {
-            insert("0@alice", "a", null);
-            insert("1@alice", "b", "0@alice");
-            crdt.delete("0@alice");
-
-            List<Item> items = crdt.getItems();
-            assertThat(items).hasSize(2);
-            assertThat(items.get(0).isDeleted()).isTrue();
-            assertThat(items.get(1).isDeleted()).isFalse();
-        }
     }
 
     // =========================================================================
@@ -182,6 +170,19 @@ class CrdtTest {
             assertThat(items.get(0).getContent()).isEqualTo("a");
             assertThat(items.get(1).isDeleted()).isTrue();
             assertThat(items.get(2).getContent()).isEqualTo("c");
+        }
+
+        @Test
+        @DisplayName("getItems returns all items in order including tombstones")
+        void getItemsIncludesTombstones() {
+            insert("0@alice", "a", null);
+            insert("1@alice", "b", "0@alice");
+            crdt.delete("0@alice");
+
+            List<Item> items = crdt.getItems();
+            assertThat(items).hasSize(2);
+            assertThat(items.get(0).isDeleted()).isTrue();
+            assertThat(items.get(1).isDeleted()).isFalse();
         }
 
         @Test
@@ -293,7 +294,7 @@ class CrdtTest {
         @DisplayName("Three-way concurrent insert converges regardless of arrival order")
         void threeWayConcurrentInsertAllPermutations() {
             // All three clients insert at the same position concurrently.
-            // Expected: "charlie" > "bob" > "alice" → z, y, x
+            // Expected: "charlie" > "bob" > "alice" → c, b, a
             String[][] orders = {
                 {"charlie", "bob",     "alice"},
                 {"charlie", "alice",   "bob"},

@@ -25,6 +25,7 @@ public class Item {
     private int indent;
     private String color;
     private String background;
+    private String link;
 
     public Item(String id, String content) {
         this.id = id;

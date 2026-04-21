@@ -26,6 +26,7 @@ public class DocumentChangeMapper {
                 .indent(item.getIndent())
                 .color(item.getColor())
                 .background(item.getBackground())
+                .link(item.getLink())
                 .isDeleted(item.isDeleted())
                 .build();
     }
