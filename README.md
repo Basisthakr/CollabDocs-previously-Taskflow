@@ -152,39 +152,6 @@ frontend/src/
 
 ---
 
-## Screenshots
-
-**Sign in and sign up**
-
-![sign in](images/signin.png)
-![signup](images/signup.png)
-
-**Document dashboard**
-
-![dashboard](images/dashboard.png)
-
-**Document management**
-
-![create doc](images/create.png)
-![delete doc](images/delete.png)
-![rename doc](images/rename.png)
-![share doc](images/share.png)
-
-**Collaborative editing**
-
-![first user](images/u1.png)
-![second user](images/u2.png)
-
----
-
-## Research basis
-
-The CRDT algorithm is based on YATA (Yet Another Transformation Approach), the same algorithm used by Yjs. See the included research paper for background:
-
-> Shapiro et al., *A Survey of CRDTs for Real-Time Collaborative Editing* — [CRDT_Research_Paper.pdf](./CRDT_Research_Paper.pdf)
-
----
-
 ## License
 
 MIT
