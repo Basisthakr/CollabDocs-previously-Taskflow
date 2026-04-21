@@ -1,6 +1,6 @@
 package com.basisttha.response;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import lombok.*;
 
 @Getter
@@ -8,6 +8,12 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@JsonAutoDetect(
+    fieldVisibility    = JsonAutoDetect.Visibility.ANY,
+    getterVisibility   = JsonAutoDetect.Visibility.NONE,
+    isGetterVisibility = JsonAutoDetect.Visibility.NONE,
+    setterVisibility   = JsonAutoDetect.Visibility.NONE
+)
 public class DocumentChangeDto {
 
     private String id;
@@ -16,15 +22,10 @@ public class DocumentChangeDto {
     private String content;
     private String operation;
 
-    @JsonProperty("isDeleted")
     private boolean isDeleted;
-    @JsonProperty("isBold")
     private boolean isBold;
-    @JsonProperty("isItalic")
     private boolean isItalic;
-    @JsonProperty("isUnderline")
     private boolean isUnderline;
-    @JsonProperty("isStrike")
     private boolean isStrike;
     private Integer header;
     private String align;
@@ -32,5 +33,6 @@ public class DocumentChangeDto {
     private int indent;
     private String color;
     private String background;
+    private String link;
 
 }

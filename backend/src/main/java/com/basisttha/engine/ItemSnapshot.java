@@ -21,5 +21,6 @@ public record ItemSnapshot(
         String list,
         int indent,
         String color,
-        String background
+        String background,
+        String link
 ) {}

@@ -118,7 +118,16 @@ public class DocWebSocketController {
                         .operation(msg.getOperation())
                         .isBold(msg.isBold())
                         .isItalic(msg.isItalic())
+                        .isUnderline(msg.isUnderline())
+                        .isStrike(msg.isStrike())
                         .isDeleted(msg.isDeleted())
+                        .header(msg.getHeader())
+                        .align(msg.getAlign())
+                        .list(msg.getList())
+                        .indent(msg.getIndent())
+                        .color(msg.getColor())
+                        .background(msg.getBackground())
+                        .link(msg.getLink())
                         .build();
                 crdt.insert(item);
             }
@@ -127,7 +136,7 @@ public class DocWebSocketController {
                     msg.isBold(), msg.isItalic(),
                     msg.isUnderline(), msg.isStrike(),
                     msg.getHeader(), msg.getAlign(), msg.getList(), msg.getIndent(),
-                    msg.getColor(), msg.getBackground());
+                    msg.getColor(), msg.getBackground(), msg.getLink());
             default -> log.warn("Unknown CRDT operation '{}' — ignored", msg.getOperation());
         }
     }

@@ -69,6 +69,7 @@ public class Crdt {
                     .indent(s.indent())
                     .color(s.color())
                     .background(s.background())
+                    .link(s.link())
                     .build();
             items.add(item);
             itemMap.put(item.getId(), item);
@@ -150,14 +151,14 @@ public class Crdt {
 
     /** Convenience overload for tests and callers that only need bold/italic. */
     public synchronized void format(String id, boolean isBold, boolean isItalic) {
-        format(id, isBold, isItalic, false, false, null, null, null, 0, null, null);
+        format(id, isBold, isItalic, false, false, null, null, null, 0, null, null, null);
     }
 
     /** Update all formatting attributes on an existing item. */
     public synchronized void format(String id, boolean isBold, boolean isItalic,
             boolean isUnderline, boolean isStrike,
             Integer header, String align, String list, int indent,
-            String color, String background) {
+            String color, String background, String link) {
         Item item = itemMap.get(id);
         if (item == null) {
             log.warn("format called for unknown id {} — ignored", id);
@@ -173,8 +174,9 @@ public class Crdt {
         item.setIndent(indent);
         item.setColor(color);
         item.setBackground(background);
-        log.debug("Formatted item {} bold={} italic={} underline={} strike={} header={}",
-                id, isBold, isItalic, isUnderline, isStrike, header);
+        item.setLink(link);
+        log.debug("Formatted item {} bold={} italic={} underline={} strike={} header={} link={}",
+                id, isBold, isItalic, isUnderline, isStrike, header, link);
     }
 
     // -------------------------------------------------------------------------
@@ -248,7 +250,8 @@ public class Crdt {
                         current.getList(),
                         current.getIndent(),
                         current.getColor(),
-                        current.getBackground()
+                        current.getBackground(),
+                        current.getLink()
                 ));
                 index++;
             }
@@ -263,7 +266,7 @@ public class Crdt {
                     result.get(i + 1).id(),
                     snap.operation(), snap.deleted(), snap.bold(), snap.italic(),
                     snap.underline(), snap.strike(), snap.header(), snap.align(),
-                    snap.list(), snap.indent(), snap.color(), snap.background()
+                    snap.list(), snap.indent(), snap.color(), snap.background(), snap.link()
             ));
         }
 
