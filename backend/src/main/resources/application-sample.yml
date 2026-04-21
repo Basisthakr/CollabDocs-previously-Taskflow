@@ -1,0 +1,81 @@
+# ============================================================
+# application-sample.yml
+#
+# Copy this file to application.yml (gitignored) and fill in
+# the values below, OR export the equivalent environment
+# variables — Spring Boot maps them automatically.
+#
+# Environment-variable names are written in comments next to
+# each property using the Spring relaxed-binding convention:
+#   spring.datasource.url  →  SPRING_DATASOURCE_URL
+# ============================================================
+
+spring:
+
+  datasource:
+    url:      jdbc:postgresql://localhost:5432/collabdocs   # SPRING_DATASOURCE_URL
+    username: postgres                                       # SPRING_DATASOURCE_USERNAME
+    password: changeme                                       # SPRING_DATASOURCE_PASSWORD
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      # Use 'validate' in production so Hibernate never silently alters the schema.
+      # Use 'create-drop' for local dev / first run, then switch back to 'validate'.
+      ddl-auto: update       # change to 'validate' once schema is stable
+    show-sql: false          # set to true only for debugging — very noisy in prod
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # ---- Email (required only for 2-factor authentication) -------------------
+  mail:
+    host: smtp.gmail.com                  # SPRING_MAIL_HOST
+    port: 587                             # SPRING_MAIL_PORT
+    username: your-email@gmail.com        # SPRING_MAIL_USERNAME
+    password: your-app-password           # SPRING_MAIL_PASSWORD  (Gmail app-password, NOT account password)
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+# ---- Application security --------------------------------------------------
+application:
+  security:
+    jwt:
+      # Generate with: openssl rand -base64 64
+      # Must be Base64-encoded and at least 256 bits (32 bytes → 44 Base64 chars).
+      secret-key: replace-with-a-256-bit-base64-encoded-secret-key   # APP_SECURITY_JWT_SECRET_KEY
+      expiration: 86400000          # 1 day in ms     APP_SECURITY_JWT_EXPIRATION
+      refresh-token:
+        expiration: 604800000       # 7 days in ms    APP_SECURITY_JWT_REFRESH_TOKEN_EXPIRATION
+
+# ---- CORS ------------------------------------------------------------------
+app:
+  cors:
+    # Comma-separated list of allowed origins (no trailing slash).
+    # In production replace with your actual frontend URL, e.g.:
+    #   allowed-origins: https://docs.yourapp.com
+    allowed-origins: http://localhost:5173    # APP_CORS_ALLOWED_ORIGINS
+
+# ---- Two-factor auth (OTP) -------------------------------------------------
+two:
+  factor:
+    auth:
+      otp:
+        expiration-minutes: 5       # OTP TTL in minutes
+
+# ---- Logging ---------------------------------------------------------------
+logging:
+  level:
+    com.devansh: INFO               # set to DEBUG for verbose local dev output
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
