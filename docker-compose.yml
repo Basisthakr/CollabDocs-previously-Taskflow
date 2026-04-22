@@ -4,15 +4,16 @@
 # Three services:
 #   postgres  — PostgreSQL 16 database with a named volume for persistence.
 #   backend   — Spring Boot API, waits for postgres to be healthy.
-#   frontend  — React app served by nginx, built with the correct API URLs.
+#   frontend  — React app served by nginx; proxies /api/, /auth/, /docs/ws
+#               to the backend container (backend is NOT exposed publicly).
 #
 # Quick start:
 #   1. cp .env.example .env
 #   2. Fill in the required values in .env
 #   3. docker compose up --build
 #
-# The frontend is served at http://localhost:3000
-# The backend API is at       http://localhost:8080
+# The frontend (and all traffic) is served at http://<host>:3000
+# The backend is internal only — reachable only via nginx inside Docker.
 ################################################################################
 
 services:
@@ -45,8 +46,8 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    # No host port mapping — backend is only reachable through the nginx proxy
+    # inside the Docker network. This prevents direct public access to :8080.
     environment:
       # Database
       SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/collabdocs
@@ -80,11 +81,15 @@ services:
     build:
       context: ./frontend
       # Vite bakes these into the JS bundle at BUILD TIME.
-      # The browser makes requests to these URLs directly, so they must be
-      # reachable from the end-user's machine — use localhost for local dev.
+      # The browser makes requests to these URLs, so they must be the public
+      # address of your server.
+      #   Local dev:  http://localhost:3000  /  ws://localhost:3000/docs/ws
+      #   AWS EC2:    http://<EC2-IP>:3000   /  ws://<EC2-IP>:3000/docs/ws
+      # nginx (inside the frontend container) proxies /api/, /auth/, and
+      # /docs/ws to the backend — so all traffic goes through port 3000.
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
-        VITE_WS_URL:  ${VITE_WS_URL:-ws://localhost:8080/docs/ws}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+        VITE_WS_URL:  ${VITE_WS_URL:-ws://localhost:3000/docs/ws}
     restart: unless-stopped
     ports:
       - "3000:80"

@@ -38,35 +38,80 @@ Changes are broadcast in real time over WebSockets using the STOMP protocol. A p
 
 ---
 
-## Getting started
+## Running locally
 
-### Prerequisites
+There are two ways to run the project on your own machine.
 
-- Node.js 18+
-- Java 17+
-- PostgreSQL 14+
+---
 
-### 1. Clone
+### Option A — Docker Compose (recommended, no installs needed)
+
+The only prerequisite is [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+```bash
+git clone https://github.com/BasistthaSanjayKumar-ds/Collaborative-text-editor
+cd Collaborative-text-editor
+
+cp .env.example .env
+```
+
+Open `.env` and set at minimum:
+
+```dotenv
+POSTGRES_PASSWORD=any_password_you_like
+JWT_SECRET=<output of: openssl rand -base64 64>
+```
+
+Then start everything:
+
+```bash
+docker compose up --build
+```
+
+Open **http://localhost:3000** in your browser. All API calls and WebSocket
+traffic are proxied through nginx — the backend is not exposed directly.
+
+To stop:
+
+```bash
+docker compose down        # stop containers, keep the database
+docker compose down -v     # stop containers AND delete the database
+```
+
+> **Note:** `VITE_API_URL` and `VITE_WS_URL` are baked into the JavaScript
+> bundle at build time. If you change them in `.env` you must rebuild:
+> `docker compose up --build`.
+
+---
+
+### Option B — Run services individually (for development / debugging)
+
+Use this if you want hot-reload on the frontend or to run the backend in your
+IDE with a debugger attached.
+
+**Prerequisites:** Node.js 18+, Java 17+, PostgreSQL 14+
+
+#### 1. Clone
 
 ```bash
 git clone https://github.com/BasistthaSanjayKumar-ds/Collaborative-text-editor
 cd Collaborative-text-editor
 ```
 
-### 2. Database
+#### 2. Create the database
 
 ```sql
 CREATE DATABASE collabdocs;
 ```
 
-### 3. Backend configuration
+#### 3. Configure the backend
 
 ```bash
 cp backend/src/main/resources/application-sample.yml \
    backend/src/main/resources/application.yml
 ```
 
-Open `application.yml` and fill in:
+Open `application.yml` and fill in your database password and a JWT secret:
 
 ```yaml
 spring:
@@ -79,18 +124,16 @@ application:
       secret-key: <output of: openssl rand -base64 64>
 ```
 
-The database tables are created automatically on first run (`ddl-auto: update`).
-
-### 4. Start the backend
+#### 4. Start the backend
 
 ```bash
 cd backend
 ./mvnw spring-boot:run
 ```
 
-Runs on http://localhost:8080
+Runs on **http://localhost:8080**
 
-### 5. Start the frontend
+#### 5. Start the frontend
 
 ```bash
 cd frontend
@@ -98,35 +141,15 @@ npm install
 npm run dev
 ```
 
-Runs on http://localhost:5173
+Runs on **http://localhost:5173**
 
-### 6. Open the app
+The Vite dev server talks directly to the backend at `localhost:8080` (the
+`config.js` fallback kicks in automatically when no build-time env var is set).
 
-Navigate to http://localhost:5173, register an account, create a document, and share the URL with a collaborator.
+#### 6. Open the app
 
----
-
-## Docker
-
-The fastest way to run the full stack:
-
-```bash
-cp .env.example .env
-# Edit .env — set POSTGRES_PASSWORD and JWT_SECRET at minimum
-docker compose up --build
-```
-
-Frontend: http://localhost:3000  
-Backend: http://localhost:8080
-
-To stop:
-
-```bash
-docker compose down        # stop containers, keep database
-docker compose down -v     # stop containers, delete database
-```
-
-**Note:** Vite bakes `VITE_API_URL` and `VITE_WS_URL` into the JavaScript bundle at build time. If you change these values you must rebuild the frontend image (`docker compose build frontend`).
+Go to **http://localhost:5173**, register an account, create a document, and
+share the URL with a collaborator.
 
 ---
 
@@ -149,6 +172,39 @@ frontend/src/
   Redux/           Auth and document state management
   components/      Navbar, document list row, modals
 ```
+
+---
+
+## Screenshots
+
+**Sign in and sign up**
+
+![sign in](images/signin.png)
+![signup](images/signup.png)
+
+**Document dashboard**
+
+![dashboard](images/dashboard.png)
+
+**Document management**
+
+![create doc](images/create.png)
+![delete doc](images/delete.png)
+![rename doc](images/rename.png)
+![share doc](images/share.png)
+
+**Collaborative editing**
+
+![first user](images/u1.png)
+![second user](images/u2.png)
+
+---
+
+## Research basis
+
+The CRDT algorithm is based on YATA (Yet Another Transformation Approach), the same algorithm used by Yjs. See the included research paper for background:
+
+> Shapiro et al., *A Survey of CRDTs for Real-Time Collaborative Editing* — [CRDT_Research_Paper.pdf](./CRDT_Research_Paper.pdf)
 
 ---
 
