@@ -206,7 +206,7 @@ export default function Edit() {
         redo: () => quillRef.current?.getEditor()?.history.redo(),
       },
     },
-    history: { delay: 1000, maxStack: 100, userOnly: true },
+    history: { delay: 1000, maxStack: 100, userOnly: false },
   }), []);
 
   // ── CRDT item factory ────────────────────────────────────────────────────
@@ -229,6 +229,7 @@ export default function Edit() {
       indent:      fmtAttrs.indent     ?? 0,
       color:       fmtAttrs.color      ?? null,
       background:  fmtAttrs.background ?? null,
+      link:        fmtAttrs.link       ?? null,
     };
   }
 
@@ -296,6 +297,7 @@ export default function Edit() {
     item.indent      = attrs.indent     ?? 0;
     item.color       = attrs.color      ?? null;
     item.background  = attrs.background ?? null;
+    item.link        = attrs.link       ?? null;
   }
 
   // ── Quill renderer ───────────────────────────────────────────────────────
@@ -305,6 +307,11 @@ export default function Edit() {
 
     const saved = editor.getSelection();
     const ops   = [];
+
+    // Save history so setContents (source "api") doesn't record itself as an
+    // undoable action or transform existing undo entries incorrectly.
+    const savedUndo = editor.history.stack.undo.slice();
+    const savedRedo = editor.history.stack.redo.slice();
     let current = firstItemRef.current;
 
     while (current) {
@@ -320,6 +327,7 @@ export default function Edit() {
         if (current.indent)      attrs.indent      = current.indent;
         if (current.color)       attrs.color       = current.color;
         if (current.background)  attrs.background  = current.background;
+        if (current.link)        attrs.link        = current.link;
         ops.push({
           insert: current.content,
           ...(Object.keys(attrs).length ? { attributes: attrs } : {}),
@@ -345,6 +353,13 @@ export default function Edit() {
     }
 
     editor.setContents({ ops }, "api");
+
+    // Restore history — setContents fires a text-change that would otherwise be
+    // recorded (userOnly: false) or would transform and potentially corrupt
+    // existing undo entries.
+    editor.history.stack.undo = savedUndo;
+    editor.history.stack.redo = savedRedo;
+
     if (saved) editor.setSelection(saved.index, saved.length, "api");
   }
 
@@ -376,6 +391,7 @@ export default function Edit() {
       indent:     item.indent,
       color:      item.color,
       background: item.background,
+      link:       item.link,
     };
   }
 
@@ -392,6 +408,7 @@ export default function Edit() {
       indent:     dto.indent,
       color:      dto.color,
       background: dto.background,
+      link:       dto.link,
     };
   }
 
@@ -414,6 +431,7 @@ export default function Edit() {
       indent:      attrs.indent     ?? 0,
       color:       attrs.color      ?? null,
       background:  attrs.background ?? null,
+      link:        attrs.link       ?? null,
     });
   }
 
@@ -711,6 +729,7 @@ export default function Edit() {
                 indent:     op.attributes.indent     !== undefined ? (op.attributes.indent  ?? 0)    : item.indent,
                 color:      op.attributes.color      !== undefined ? (op.attributes.color   || null) : item.color,
                 background: op.attributes.background !== undefined ? (op.attributes.background || null) : item.background,
+                link:       op.attributes.link       !== undefined ? (op.attributes.link    || null) : item.link,
               };
 
               applyFormat(itemId, newAttrs);
@@ -737,6 +756,7 @@ export default function Edit() {
             indent:     attrs.indent     ?? 0,
             color:      attrs.color      || null,
             background: attrs.background || null,
+            link:       attrs.link       || null,
           };
 
           for (let i = 0; i < text.length; i++) {
@@ -766,6 +786,7 @@ export default function Edit() {
                 indent:      fmtAttrs.indent,
                 color:       fmtAttrs.color,
                 background:  fmtAttrs.background,
+                link:        fmtAttrs.link,
               }),
             });
           }
@@ -860,9 +881,7 @@ export default function Edit() {
           <div className="docs-title-area">
             <span className="docs-doc-title">{docTitle}</span>
             <nav className="docs-menu-bar">
-              {["File", "Edit", "View", "Insert", "Format", "Tools"].map(item => (
-                <button key={item} className="docs-menu-item">{item}</button>
-              ))}
+              <button className="docs-menu-item">File</button>
             </nav>
           </div>
         </div>
