@@ -76,6 +76,6 @@ two:
 # ---- Logging ---------------------------------------------------------------
 logging:
   level:
-    com.devansh: INFO               # set to DEBUG for verbose local dev output
+    com.basisttha: INFO               # set to DEBUG for verbose local dev output
     org.springframework.web: WARN
     org.hibernate.SQL: WARN
