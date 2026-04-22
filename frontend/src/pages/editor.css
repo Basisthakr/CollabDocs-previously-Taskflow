@@ -337,11 +337,40 @@
   color: #202124 !important;
 }
 
-/* Color pickers are small swatches — keep Quill's default layout */
-#editor-toolbar .ql-color,
-#editor-toolbar .ql-background {
+/* ── Color / Highlight picker fixes ──────────────────────────────────────── */
+
+/* Quill's default snow theme expects display:inline-block on .ql-picker-label,
+   but our global override sets display:flex.  In a flex container, SVGs without
+   explicit dimensions can collapse to 0.  Pin the label width and set a fixed
+   SVG size so both pickers always render their icons. */
+#editor-toolbar .ql-color-picker {
   width: auto !important;
 }
+
+#editor-toolbar .ql-color-picker .ql-picker-label {
+  width: 26px;
+  padding: 2px 4px !important;
+}
+
+#editor-toolbar .ql-color-picker .ql-picker-label svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Quill leaves the color-swatch element at opacity:0.4 (ql-transparent) even
+   after a colour is chosen, making the swatch too faint to notice.
+   Setting opacity:1 here means the swatch is always clearly visible. */
+#editor-toolbar .ql-color-picker .ql-color-label {
+  opacity: 1;
+}
+
+/* Default swatch colours when no colour has been selected yet.
+   Quill overrides these with an inline style as soon as the user picks a colour,
+   so there is no conflict — the inline style always wins over a plain CSS rule. */
+#editor-toolbar .ql-color      .ql-color-label { stroke: #000000; } /* text colour  → black underline  */
+#editor-toolbar .ql-background .ql-color-label { fill:   #ffff00; } /* highlight    → yellow swatch    */
 
 /* ── Editor area ────────────────────────────────────────────────────────── */
 
