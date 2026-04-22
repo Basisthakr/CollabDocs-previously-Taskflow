@@ -65,6 +65,9 @@ services:
       # CORS — allow the frontend origin
       APP_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
 
+      # OTP / 2-FA cache — expiration in minutes (required even when email is disabled)
+      TWO_FACTOR_AUTH_OTP_EXPIRATION_MINUTES: ${OTP_EXPIRATION_MINUTES:-5}
+
       # Email / 2-FA (leave blank to disable OTP emails in dev)
       SPRING_MAIL_HOST:     ${MAIL_HOST:-smtp.gmail.com}
       SPRING_MAIL_PORT:     ${MAIL_PORT:-587}
