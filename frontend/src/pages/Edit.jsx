@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from "docx";
 import { createPortal } from "react-dom";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
@@ -195,7 +196,9 @@ export default function Edit() {
   const [saveError,      setSaveError]      = useState("");
   const [remoteCursors,  setRemoteCursors]  = useState({});
   const [editorReady,    setEditorReady]    = useState(false);
+  const [fileMenuOpen,   setFileMenuOpen]   = useState(false);
   const statusTimerRef = useRef(null);
+  const fileMenuRef    = useRef(null);
 
   // ── Quill modules (stable reference so Quill doesn't re-init) ────────────
   const modules = useMemo(() => ({
@@ -619,6 +622,85 @@ export default function Edit() {
     }
   }, [docId, token]);
 
+  // ── Close File menu when clicking outside ───────────────────────────────
+  useEffect(() => {
+    if (!fileMenuOpen) return;
+    const close = (e) => {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) {
+        setFileMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [fileMenuOpen]);
+
+  // ── Download as DOCX ─────────────────────────────────────────────────────
+  const handleDownloadDocx = useCallback(async () => {
+    setFileMenuOpen(false);
+
+    // Walk the CRDT linked list and group characters that share the same
+    // formatting into runs, splitting on newlines to build paragraphs.
+    const paragraphOps = [[]]; // array of arrays of CRDT items
+    let current = firstItemRef.current;
+    while (current) {
+      if (!current.isDeleted) {
+        if (current.content === "\n") {
+          paragraphOps.push([]);
+        } else {
+          paragraphOps[paragraphOps.length - 1].push(current);
+        }
+      }
+      current = current.right ? crdtMapRef.current[current.right] : null;
+    }
+
+    const headingMap = {
+      1: HeadingLevel.HEADING_1,
+      2: HeadingLevel.HEADING_2,
+      3: HeadingLevel.HEADING_3,
+    };
+
+    const alignMap = {
+      center: AlignmentType.CENTER,
+      right:  AlignmentType.RIGHT,
+      justify: AlignmentType.JUSTIFIED,
+    };
+
+    const docParagraphs = paragraphOps.map((items) => {
+      // Detect paragraph-level attributes from the first item (all chars in a
+      // line should share the same block-level attributes in our CRDT).
+      const first    = items[0];
+      const heading  = first?.header ? headingMap[first.header] : undefined;
+      const alignment = first?.align ? alignMap[first.align] : undefined;
+
+      const runs = items.map((item) => new TextRun({
+        text:      item.content,
+        bold:      item.isBold      || undefined,
+        italics:   item.isItalic    || undefined,
+        underline: item.isUnderline ? {} : undefined,
+        strike:    item.isStrike    || undefined,
+        color:     item.color       ? item.color.replace("#", "") : undefined,
+      }));
+
+      return new Paragraph({
+        children:  runs,
+        heading,
+        alignment,
+      });
+    });
+
+    const doc = new Document({
+      sections: [{ children: docParagraphs }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `${docTitle}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [docTitle]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Keyboard shortcut Ctrl+S / Cmd+S ────────────────────────────────────
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -859,10 +941,53 @@ export default function Edit() {
           />
           <div className="docs-title-area">
             <span className="docs-doc-title">{docTitle}</span>
+<<<<<<< Updated upstream
             <nav className="docs-menu-bar">
               {["File", "Edit", "View", "Insert", "Format", "Tools"].map(item => (
                 <button key={item} className="docs-menu-item">{item}</button>
               ))}
+=======
+            <nav className="docs-menu-bar" ref={fileMenuRef} style={{ position: "relative" }}>
+              <button
+                className="docs-menu-item"
+                onClick={() => setFileMenuOpen(o => !o)}
+              >
+                File
+              </button>
+              {fileMenuOpen && (
+                <div style={{
+                  position:   "absolute",
+                  top:        "100%",
+                  left:       0,
+                  background: "#fff",
+                  border:     "1px solid #dadce0",
+                  borderRadius: 4,
+                  boxShadow:  "0 2px 8px rgba(0,0,0,.15)",
+                  minWidth:   180,
+                  zIndex:     1000,
+                  padding:    "4px 0",
+                }}>
+                  <button
+                    onClick={handleDownloadDocx}
+                    style={{
+                      display:    "block",
+                      width:      "100%",
+                      padding:    "7px 16px",
+                      textAlign:  "left",
+                      background: "none",
+                      border:     "none",
+                      cursor:     "pointer",
+                      fontSize:   13,
+                      color:      "#202124",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                  >
+                    Download as .docx
+                  </button>
+                </div>
+              )}
+>>>>>>> Stashed changes
             </nav>
           </div>
         </div>
