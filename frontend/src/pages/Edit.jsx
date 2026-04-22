@@ -209,7 +209,7 @@ export default function Edit() {
         redo: () => quillRef.current?.getEditor()?.history.redo(),
       },
     },
-    history: { delay: 1000, maxStack: 100, userOnly: true },
+    history: { delay: 1000, maxStack: 100, userOnly: false },
   }), []);
 
   // ── CRDT item factory ────────────────────────────────────────────────────
@@ -232,6 +232,7 @@ export default function Edit() {
       indent:      fmtAttrs.indent     ?? 0,
       color:       fmtAttrs.color      ?? null,
       background:  fmtAttrs.background ?? null,
+      link:        fmtAttrs.link       ?? null,
     };
   }
 
@@ -299,6 +300,7 @@ export default function Edit() {
     item.indent      = attrs.indent     ?? 0;
     item.color       = attrs.color      ?? null;
     item.background  = attrs.background ?? null;
+    item.link        = attrs.link       ?? null;
   }
 
   // ── Quill renderer ───────────────────────────────────────────────────────
@@ -308,6 +310,11 @@ export default function Edit() {
 
     const saved = editor.getSelection();
     const ops   = [];
+
+    // Save history so setContents (source "api") doesn't record itself as an
+    // undoable action or transform existing undo entries incorrectly.
+    const savedUndo = editor.history.stack.undo.slice();
+    const savedRedo = editor.history.stack.redo.slice();
     let current = firstItemRef.current;
 
     while (current) {
@@ -323,6 +330,7 @@ export default function Edit() {
         if (current.indent)      attrs.indent      = current.indent;
         if (current.color)       attrs.color       = current.color;
         if (current.background)  attrs.background  = current.background;
+        if (current.link)        attrs.link        = current.link;
         ops.push({
           insert: current.content,
           ...(Object.keys(attrs).length ? { attributes: attrs } : {}),
@@ -348,6 +356,13 @@ export default function Edit() {
     }
 
     editor.setContents({ ops }, "api");
+
+    // Restore history — setContents fires a text-change that would otherwise be
+    // recorded (userOnly: false) or would transform and potentially corrupt
+    // existing undo entries.
+    editor.history.stack.undo = savedUndo;
+    editor.history.stack.redo = savedRedo;
+
     if (saved) editor.setSelection(saved.index, saved.length, "api");
   }
 
@@ -379,6 +394,7 @@ export default function Edit() {
       indent:     item.indent,
       color:      item.color,
       background: item.background,
+      link:       item.link,
     };
   }
 
@@ -395,6 +411,7 @@ export default function Edit() {
       indent:     dto.indent,
       color:      dto.color,
       background: dto.background,
+      link:       dto.link,
     };
   }
 
@@ -417,6 +434,7 @@ export default function Edit() {
       indent:      attrs.indent     ?? 0,
       color:       attrs.color      ?? null,
       background:  attrs.background ?? null,
+      link:        attrs.link       ?? null,
     });
   }
 
@@ -701,6 +719,67 @@ export default function Edit() {
     URL.revokeObjectURL(url);
   }, [docTitle]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Download as PDF ──────────────────────────────────────────────────────
+  // Screenshots the live Quill editor DOM so the PDF matches exactly what the
+  // user sees (fonts, colours, headings, alignment, bold/italic/underline, etc.).
+  // Long documents are split across multiple A4 pages.
+  const handleDownloadPdf = useCallback(async () => {
+    setFileMenuOpen(false);
+
+    const editorEl = quillRef.current?.getEditor()?.root;
+    if (!editorEl) return;
+
+    // Dynamically import heavy PDF libraries so they don't bloat the initial bundle.
+    const [{ jsPDF }, html2canvas] = await Promise.all([
+      import("jspdf"),
+      import("html2canvas").then(m => m.default),
+    ]);
+
+    // Capture the editor at 2× resolution for crisp text on high-DPI screens.
+    const canvas = await html2canvas(editorEl, {
+      scale:           2,
+      useCORS:         true,
+      backgroundColor: "#ffffff",
+      logging:         false,
+    });
+
+    // A4 page dimensions in mm.
+    const PAGE_W_MM  = 210;
+    const PAGE_H_MM  = 297;
+    const MARGIN_MM  = 15;
+    const CONTENT_W  = PAGE_W_MM - MARGIN_MM * 2; // 180 mm
+
+    // Scale factor: how many mm does one canvas pixel represent.
+    const mmPerPx    = CONTENT_W / canvas.width;
+    const totalH_MM  = canvas.height * mmPerPx;
+    const pageH_MM   = PAGE_H_MM - MARGIN_MM * 2; // 267 mm
+
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+    let canvasPxConsumed = 0;
+
+    while (canvasPxConsumed < canvas.height) {
+      const slicePx   = Math.min(Math.ceil(pageH_MM / mmPerPx), canvas.height - canvasPxConsumed);
+      const sliceH_MM = slicePx * mmPerPx;
+
+      // Carve out this page's slice into a temporary canvas.
+      const slice    = document.createElement("canvas");
+      slice.width    = canvas.width;
+      slice.height   = slicePx;
+      const ctx      = slice.getContext("2d");
+      ctx.fillStyle  = "#ffffff";
+      ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(canvas, 0, canvasPxConsumed, canvas.width, slicePx, 0, 0, canvas.width, slicePx);
+
+      pdf.addImage(slice.toDataURL("image/png"), "PNG", MARGIN_MM, MARGIN_MM, CONTENT_W, sliceH_MM);
+
+      canvasPxConsumed += slicePx;
+      if (canvasPxConsumed < canvas.height) pdf.addPage();
+    }
+
+    pdf.save(`${docTitle}.pdf`);
+  }, [docTitle]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Keyboard shortcut Ctrl+S / Cmd+S ────────────────────────────────────
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -793,6 +872,7 @@ export default function Edit() {
                 indent:     op.attributes.indent     !== undefined ? (op.attributes.indent  ?? 0)    : item.indent,
                 color:      op.attributes.color      !== undefined ? (op.attributes.color   || null) : item.color,
                 background: op.attributes.background !== undefined ? (op.attributes.background || null) : item.background,
+                link:       op.attributes.link       !== undefined ? (op.attributes.link    || null) : item.link,
               };
 
               applyFormat(itemId, newAttrs);
@@ -819,6 +899,7 @@ export default function Edit() {
             indent:     attrs.indent     ?? 0,
             color:      attrs.color      || null,
             background: attrs.background || null,
+            link:       attrs.link       || null,
           };
 
           for (let i = 0; i < text.length; i++) {
@@ -848,6 +929,7 @@ export default function Edit() {
                 indent:      fmtAttrs.indent,
                 color:       fmtAttrs.color,
                 background:  fmtAttrs.background,
+                link:        fmtAttrs.link,
               }),
             });
           }
@@ -941,12 +1023,6 @@ export default function Edit() {
           />
           <div className="docs-title-area">
             <span className="docs-doc-title">{docTitle}</span>
-<<<<<<< Updated upstream
-            <nav className="docs-menu-bar">
-              {["File", "Edit", "View", "Insert", "Format", "Tools"].map(item => (
-                <button key={item} className="docs-menu-item">{item}</button>
-              ))}
-=======
             <nav className="docs-menu-bar" ref={fileMenuRef} style={{ position: "relative" }}>
               <button
                 className="docs-menu-item"
@@ -985,9 +1061,26 @@ export default function Edit() {
                   >
                     Download as .docx
                   </button>
+                  <button
+                    onClick={handleDownloadPdf}
+                    style={{
+                      display:    "block",
+                      width:      "100%",
+                      padding:    "7px 16px",
+                      textAlign:  "left",
+                      background: "none",
+                      border:     "none",
+                      cursor:     "pointer",
+                      fontSize:   13,
+                      color:      "#202124",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                  >
+                    Download as .pdf
+                  </button>
                 </div>
               )}
->>>>>>> Stashed changes
             </nav>
           </div>
         </div>
