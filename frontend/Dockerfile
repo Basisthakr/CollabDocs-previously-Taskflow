@@ -15,8 +15,8 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 # Install dependencies first for layer caching.
-COPY package.json package-lock.json* ./
-RUN npm ci --prefer-offline
+COPY package.json ./
+RUN npm install
 
 # Receive build-time configuration.
 ARG VITE_API_URL=http://localhost:8080
