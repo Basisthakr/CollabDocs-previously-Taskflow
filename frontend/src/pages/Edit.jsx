@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from "docx";
 import { createPortal } from "react-dom";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
@@ -195,7 +196,9 @@ export default function Edit() {
   const [saveError,      setSaveError]      = useState("");
   const [remoteCursors,  setRemoteCursors]  = useState({});
   const [editorReady,    setEditorReady]    = useState(false);
+  const [fileMenuOpen,   setFileMenuOpen]   = useState(false);
   const statusTimerRef = useRef(null);
+  const fileMenuRef    = useRef(null);
 
   // ── Quill modules (stable reference so Quill doesn't re-init) ────────────
   const modules = useMemo(() => ({
@@ -206,7 +209,7 @@ export default function Edit() {
         redo: () => quillRef.current?.getEditor()?.history.redo(),
       },
     },
-    history: { delay: 1000, maxStack: 100, userOnly: false },
+    history: { delay: 1000, maxStack: 100, userOnly: true },
   }), []);
 
   // ── CRDT item factory ────────────────────────────────────────────────────
@@ -229,7 +232,6 @@ export default function Edit() {
       indent:      fmtAttrs.indent     ?? 0,
       color:       fmtAttrs.color      ?? null,
       background:  fmtAttrs.background ?? null,
-      link:        fmtAttrs.link       ?? null,
     };
   }
 
@@ -297,7 +299,6 @@ export default function Edit() {
     item.indent      = attrs.indent     ?? 0;
     item.color       = attrs.color      ?? null;
     item.background  = attrs.background ?? null;
-    item.link        = attrs.link       ?? null;
   }
 
   // ── Quill renderer ───────────────────────────────────────────────────────
@@ -307,11 +308,6 @@ export default function Edit() {
 
     const saved = editor.getSelection();
     const ops   = [];
-
-    // Save history so setContents (source "api") doesn't record itself as an
-    // undoable action or transform existing undo entries incorrectly.
-    const savedUndo = editor.history.stack.undo.slice();
-    const savedRedo = editor.history.stack.redo.slice();
     let current = firstItemRef.current;
 
     while (current) {
@@ -327,7 +323,6 @@ export default function Edit() {
         if (current.indent)      attrs.indent      = current.indent;
         if (current.color)       attrs.color       = current.color;
         if (current.background)  attrs.background  = current.background;
-        if (current.link)        attrs.link        = current.link;
         ops.push({
           insert: current.content,
           ...(Object.keys(attrs).length ? { attributes: attrs } : {}),
@@ -353,13 +348,6 @@ export default function Edit() {
     }
 
     editor.setContents({ ops }, "api");
-
-    // Restore history — setContents fires a text-change that would otherwise be
-    // recorded (userOnly: false) or would transform and potentially corrupt
-    // existing undo entries.
-    editor.history.stack.undo = savedUndo;
-    editor.history.stack.redo = savedRedo;
-
     if (saved) editor.setSelection(saved.index, saved.length, "api");
   }
 
@@ -391,7 +379,6 @@ export default function Edit() {
       indent:     item.indent,
       color:      item.color,
       background: item.background,
-      link:       item.link,
     };
   }
 
@@ -408,7 +395,6 @@ export default function Edit() {
       indent:     dto.indent,
       color:      dto.color,
       background: dto.background,
-      link:       dto.link,
     };
   }
 
@@ -431,7 +417,6 @@ export default function Edit() {
       indent:      attrs.indent     ?? 0,
       color:       attrs.color      ?? null,
       background:  attrs.background ?? null,
-      link:        attrs.link       ?? null,
     });
   }
 
@@ -637,6 +622,85 @@ export default function Edit() {
     }
   }, [docId, token]);
 
+  // ── Close File menu when clicking outside ───────────────────────────────
+  useEffect(() => {
+    if (!fileMenuOpen) return;
+    const close = (e) => {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) {
+        setFileMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [fileMenuOpen]);
+
+  // ── Download as DOCX ─────────────────────────────────────────────────────
+  const handleDownloadDocx = useCallback(async () => {
+    setFileMenuOpen(false);
+
+    // Walk the CRDT linked list and group characters that share the same
+    // formatting into runs, splitting on newlines to build paragraphs.
+    const paragraphOps = [[]]; // array of arrays of CRDT items
+    let current = firstItemRef.current;
+    while (current) {
+      if (!current.isDeleted) {
+        if (current.content === "\n") {
+          paragraphOps.push([]);
+        } else {
+          paragraphOps[paragraphOps.length - 1].push(current);
+        }
+      }
+      current = current.right ? crdtMapRef.current[current.right] : null;
+    }
+
+    const headingMap = {
+      1: HeadingLevel.HEADING_1,
+      2: HeadingLevel.HEADING_2,
+      3: HeadingLevel.HEADING_3,
+    };
+
+    const alignMap = {
+      center: AlignmentType.CENTER,
+      right:  AlignmentType.RIGHT,
+      justify: AlignmentType.JUSTIFIED,
+    };
+
+    const docParagraphs = paragraphOps.map((items) => {
+      // Detect paragraph-level attributes from the first item (all chars in a
+      // line should share the same block-level attributes in our CRDT).
+      const first    = items[0];
+      const heading  = first?.header ? headingMap[first.header] : undefined;
+      const alignment = first?.align ? alignMap[first.align] : undefined;
+
+      const runs = items.map((item) => new TextRun({
+        text:      item.content,
+        bold:      item.isBold      || undefined,
+        italics:   item.isItalic    || undefined,
+        underline: item.isUnderline ? {} : undefined,
+        strike:    item.isStrike    || undefined,
+        color:     item.color       ? item.color.replace("#", "") : undefined,
+      }));
+
+      return new Paragraph({
+        children:  runs,
+        heading,
+        alignment,
+      });
+    });
+
+    const doc = new Document({
+      sections: [{ children: docParagraphs }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `${docTitle}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [docTitle]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Keyboard shortcut Ctrl+S / Cmd+S ────────────────────────────────────
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -729,7 +793,6 @@ export default function Edit() {
                 indent:     op.attributes.indent     !== undefined ? (op.attributes.indent  ?? 0)    : item.indent,
                 color:      op.attributes.color      !== undefined ? (op.attributes.color   || null) : item.color,
                 background: op.attributes.background !== undefined ? (op.attributes.background || null) : item.background,
-                link:       op.attributes.link       !== undefined ? (op.attributes.link    || null) : item.link,
               };
 
               applyFormat(itemId, newAttrs);
@@ -756,7 +819,6 @@ export default function Edit() {
             indent:     attrs.indent     ?? 0,
             color:      attrs.color      || null,
             background: attrs.background || null,
-            link:       attrs.link       || null,
           };
 
           for (let i = 0; i < text.length; i++) {
@@ -786,7 +848,6 @@ export default function Edit() {
                 indent:      fmtAttrs.indent,
                 color:       fmtAttrs.color,
                 background:  fmtAttrs.background,
-                link:        fmtAttrs.link,
               }),
             });
           }
@@ -880,8 +941,53 @@ export default function Edit() {
           />
           <div className="docs-title-area">
             <span className="docs-doc-title">{docTitle}</span>
+<<<<<<< Updated upstream
             <nav className="docs-menu-bar">
-              <button className="docs-menu-item">File</button>
+              {["File", "Edit", "View", "Insert", "Format", "Tools"].map(item => (
+                <button key={item} className="docs-menu-item">{item}</button>
+              ))}
+=======
+            <nav className="docs-menu-bar" ref={fileMenuRef} style={{ position: "relative" }}>
+              <button
+                className="docs-menu-item"
+                onClick={() => setFileMenuOpen(o => !o)}
+              >
+                File
+              </button>
+              {fileMenuOpen && (
+                <div style={{
+                  position:   "absolute",
+                  top:        "100%",
+                  left:       0,
+                  background: "#fff",
+                  border:     "1px solid #dadce0",
+                  borderRadius: 4,
+                  boxShadow:  "0 2px 8px rgba(0,0,0,.15)",
+                  minWidth:   180,
+                  zIndex:     1000,
+                  padding:    "4px 0",
+                }}>
+                  <button
+                    onClick={handleDownloadDocx}
+                    style={{
+                      display:    "block",
+                      width:      "100%",
+                      padding:    "7px 16px",
+                      textAlign:  "left",
+                      background: "none",
+                      border:     "none",
+                      cursor:     "pointer",
+                      fontSize:   13,
+                      color:      "#202124",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                  >
+                    Download as .docx
+                  </button>
+                </div>
+              )}
+>>>>>>> Stashed changes
             </nav>
           </div>
         </div>
